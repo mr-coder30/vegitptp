@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @unique
+  address   String
+  landmark  String?
+  locality  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([phone])
+}
+
+model Vegetable {
+  id          String   @id @default(cuid())
+  nameTe      String
+  nameEn      String
+  price       Decimal  @db.Decimal(10, 2)
+  unit        String   @default("kg")
+  imageUrl    String?
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems OrderItem[]
+}
+
+model Order {
+  id          String @id @default(cuid())
+  orderNumber String @unique
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  customerName String
+  phone        String
+  address      String
+  landmark     String?
+  locality     String?
+  notes        String?
+
+  deliverySlot DeliverySlot
+
+  subtotal       Decimal @db.Decimal(10, 2)
+  deliveryCharge Decimal @db.Decimal(10, 2)
+  total          Decimal @db.Decimal(10, 2)
+
+  paymentMethod PaymentMethod @default(CASH_ON_DELIVERY)
+  status        OrderStatus   @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OrderItem[]
+
+  @@index([customerId])
+  @@index([phone])
+  @@index([status])
+  @@index([deliverySlot])
+  @@index([locality])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  vegetableId String
+  vegetable   Vegetable @relation(fields: [vegetableId], references: [id])
+
+  name      String
+  quantity  Decimal @db.Decimal(10, 2)
+  unitPrice Decimal @db.Decimal(10, 2)
+  total     Decimal @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([vegetableId])
+}
+
+enum DeliverySlot {
+  MORNING_0630
+  MORNING_0800
+  MORNING_1000
+  EVENING_1800
+  EVENING_2000
+}
+
+enum PaymentMethod {
+  CASH_ON_DELIVERY
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
