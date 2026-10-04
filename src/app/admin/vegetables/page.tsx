@@ -1,6 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  useEffect,
+  useState,
+} from "react";
 
 type Vegetable = {
   id: string;
@@ -17,6 +22,7 @@ export default function AdminVegetablesPage() {
   const [loading, setLoading] = useState(true);
 
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -76,7 +82,7 @@ export default function AdminVegetablesPage() {
   }
 
   function closeModal() {
-    if (saving) return;
+    if (saving || uploadingImage) return;
 
     setShowAddModal(false);
     resetForm();
@@ -91,10 +97,73 @@ export default function AdminVegetablesPage() {
     setShowAddModal(true);
   }
 
+  async function handleImageUpload(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    setError("");
+
+    if (!file.type.startsWith("image/")) {
+      setError("Please select an image file.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Image must be smaller than 5 MB.");
+      event.target.value = "";
+      return;
+    }
+
+    setUploadingImage(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(
+        "/api/admin/vegetables/upload",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error || "Unable to upload image."
+        );
+      }
+
+      setImageUrl(data.url);
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to upload image."
+      );
+    } finally {
+      setUploadingImage(false);
+      event.target.value = "";
+    }
+  }
+
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
+
+    if (uploadingImage) {
+      setError(
+        "Please wait for the image upload to finish."
+      );
+      return;
+    }
 
     setSaving(true);
     setError("");
@@ -142,8 +211,9 @@ export default function AdminVegetablesPage() {
         );
       } else {
         setVegetables((current) =>
-          [...current, data.vegetable].sort((a, b) =>
-            a.nameEn.localeCompare(b.nameEn)
+          [...current, data.vegetable].sort(
+            (a, b) =>
+              a.nameEn.localeCompare(b.nameEn)
           )
         );
       }
@@ -234,7 +304,8 @@ export default function AdminVegetablesPage() {
 
       if (!response.ok) {
         throw new Error(
-          data?.error || "Unable to delete vegetable."
+          data?.error ||
+            "Unable to delete vegetable."
         );
       }
 
@@ -426,7 +497,9 @@ export default function AdminVegetablesPage() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
+            if (
+              event.target === event.currentTarget
+            ) {
               closeModal();
             }
           }}
@@ -450,7 +523,10 @@ export default function AdminVegetablesPage() {
               <button
                 type="button"
                 onClick={closeModal}
-                className="rounded-full px-2 text-2xl text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                disabled={
+                  saving || uploadingImage
+                }
+                className="rounded-full px-2 text-2xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
               >
                 ×
               </button>
@@ -460,6 +536,7 @@ export default function AdminVegetablesPage() {
               onSubmit={handleSubmit}
               className="mt-6 space-y-4"
             >
+              {/* Telugu Name */}
               <div>
                 <label
                   htmlFor="nameTe"
@@ -480,6 +557,7 @@ export default function AdminVegetablesPage() {
                 />
               </div>
 
+              {/* English Name */}
               <div>
                 <label
                   htmlFor="nameEn"
@@ -500,6 +578,7 @@ export default function AdminVegetablesPage() {
                 />
               </div>
 
+              {/* Price */}
               <div>
                 <label
                   htmlFor="price"
@@ -523,48 +602,94 @@ export default function AdminVegetablesPage() {
                 />
               </div>
 
+              {/* Image Upload */}
               <div>
                 <label
-                  htmlFor="imageUrl"
+                  htmlFor="vegetableImage"
                   className="text-sm font-semibold"
                 >
-                  Image URL
+                  Vegetable Image
                 </label>
 
-                <input
-                  id="imageUrl"
-                  type="url"
-                  value={imageUrl}
-                  onChange={(event) =>
-                    setImageUrl(event.target.value)
-                  }
-                  placeholder="https://..."
-                  className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none focus:border-green-600"
-                />
+                <div className="mt-2 rounded-2xl border border-dashed border-gray-300 p-4">
+                  {imageUrl && (
+                    <div className="mb-4 overflow-hidden rounded-2xl bg-gray-100">
+                      <img
+                        src={imageUrl}
+                        alt="Vegetable preview"
+                        className="h-40 w-full object-cover"
+                      />
+                    </div>
+                  )}
+
+                  <label
+                    htmlFor="vegetableImage"
+                    className={`flex cursor-pointer items-center justify-center rounded-xl px-4 py-3 text-sm font-bold transition ${
+                      uploadingImage
+                        ? "cursor-not-allowed bg-gray-100 text-gray-400"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {uploadingImage
+                      ? "Uploading image..."
+                      : imageUrl
+                        ? "Change Image"
+                        : "Choose Image"}
+
+                    <input
+                      id="vegetableImage"
+                      type="file"
+                      accept="image/*"
+                      onChange={
+                        handleImageUpload
+                      }
+                      disabled={
+                        uploadingImage ||
+                        saving
+                      }
+                      className="hidden"
+                    />
+                  </label>
+
+                  <p className="mt-2 text-center text-xs text-gray-400">
+                    JPG, PNG, WEBP • Maximum 5 MB
+                  </p>
+                </div>
               </div>
 
+              {/* Buttons */}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={closeModal}
-                  disabled={saving}
-                  className="flex-1 rounded-2xl border py-3 font-semibold text-gray-700"
+                  disabled={
+                    saving || uploadingImage
+                  }
+                  className="flex-1 rounded-2xl border py-3 font-semibold text-gray-700 disabled:opacity-50"
                 >
                   Cancel
                 </button>
 
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={
+                    saving ||
+                    uploadingImage ||
+                    !nameTe.trim() ||
+                    !nameEn.trim() ||
+                    !price
+                  }
                   className="flex-1 rounded-2xl bg-green-600 py-3 font-bold text-white disabled:bg-gray-300"
                 >
                   {saving
                     ? editingId
                       ? "Saving..."
                       : "Adding..."
-                    : editingId
-                      ? "Save Changes"
-                      : "Add Vegetable"}
+                    : uploadingImage
+                      ? "Uploading..."
+                      : editingId
+                        ? "Save Changes"
+                        : "Add Vegetable"}
                 </button>
               </div>
             </form>
