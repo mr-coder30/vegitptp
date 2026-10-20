@@ -10,6 +10,9 @@ import LanguageGate from "@/components/language/language-gate";
 export const metadata: Metadata = {
   title: "VegItPTP",
   description: "Fresh vegetables delivered in Pithapuram",
+  icons: {
+    icon: "/vegitptp-icon.png",
+  },
 };
 
 export default function RootLayout({
