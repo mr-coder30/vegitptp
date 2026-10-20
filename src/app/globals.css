@@ -1,26 +1,163 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --app-background: #f7f5ec;
+  --app-foreground: #202820;
+  --brand-primary: #245c3a;
+  --brand-leaf: #78a85b;
+  --text-muted: #5e6d63;
+  --border-default: #e1e5dc;
+  --accent: #f2b84b;
+  --accent-soft: #fbf3dc;
+  --brand-soft: #edf3e9;
+  --brand-border: #d2dfd1;
+  --danger: #b94242;
+  --danger-soft: #fce8e3;
+  --danger-border: #f0c1b4;
+  --danger-text: #963d3d;
+  --surface-warm: #f0efe5;
+  --surface-soft: #faf9f3;
+  --surface-highlight: #fffdf7;
+  --tone-light: #68776d;
+  --tone-placeholder: #7e8b81;
+  --gold: #8a681d;
+  --gold-soft: #f7f0dc;
+  --gold-border: #e8d9b7;
+
+  --font-display: "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --radius-card: 1.25rem;
+  --radius-control: 0.875rem;
+  --shadow-card: 0 0.5rem 1.5rem rgb(32 40 32 / 6%);
+  --shadow-raised: 0 1rem 2.25rem rgb(32 40 32 / 9%);
+  --control-height: 2.875rem;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--app-background);
+  --color-foreground: var(--app-foreground);
+  --font-sans: var(--font-body);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--app-background);
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--app-background);
+  color: var(--app-foreground);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 3px solid var(--brand-primary);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: var(--brand-primary);
+  color: white;
+}
+
+.market-card {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: white;
+  box-shadow: var(--shadow-card);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.market-card:hover {
+  border-color: var(--brand-border);
+  box-shadow: var(--shadow-raised);
+}
+
+.market-control {
+  min-height: var(--control-height);
+  border-radius: var(--radius-control);
+}
+
+.market-primary-action {
+  min-height: 3rem;
+  border-radius: var(--radius-control);
+  background: var(--brand-primary);
+  color: white;
+  font-weight: 700;
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.market-primary-action:hover:not(:disabled) {
+  background: #1d4b2e;
+  box-shadow: 0 0.5rem 1.25rem rgb(36 92 58 / 18%);
+}
+
+.market-primary-action:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.market-primary-action:disabled {
+  cursor: not-allowed;
+  background: var(--brand-border);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.category-scroll {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.category-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

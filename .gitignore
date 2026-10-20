@@ -42,12 +42,16 @@ next-env.d.ts
 
 # Local AI/development skill files
 .agents/
+.agent/
+.gemini/
+.gsd/
 .claude/
 .windsurf/
 skills-lock.json
 
 /src/generated/prisma
 
-
-.vercel
+# Local environment and deployment configuration
 .env*
+!.env.example
+.vercel

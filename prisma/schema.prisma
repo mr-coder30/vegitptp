@@ -13,95 +13,188 @@ model Customer {
   phone     String   @unique
   address   String
   landmark  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   locality  String?
+
+  orders   Order[]
+  sessions CustomerSession[]
+  pushSubscriptions PushSubscription[]
+
+  @@index([phone])
+}
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  language   String   @default("en")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+model CustomerSession {
+  id         String   @id @default(cuid())
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([customerId])
+  @@index([expiresAt])
+}
+
+model OtpRequest {
+  id             String   @id @default(cuid())
+  phoneHash      String
+  ipHash         String?
+  verificationId String?
+  createdAt      DateTime @default(now())
+
+  @@index([phoneHash, createdAt])
+  @@index([ipHash, createdAt])
+  @@index([verificationId])
+  @@index([createdAt])
+}
+
+model Vegetable {
+  id          String      @id @default(cuid())
+  nameTe      String      @unique
+  nameEn      String      @unique
+  price       Decimal     @db.Decimal(10, 2)
+  unit        String      @default("kg")
+  imageUrl    String?
+  isAvailable Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  orderItems OrderItem[]
+}
+
+model DeliverySlot {
+  id        String   @id @default(cuid())
+  label     String
+  startTime String
+  endTime   String?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   orders Order[]
 
-  @@index([phone])
+  @@index([isActive])
+  @@index([sortOrder])
 }
 
-model Vegetable {
-  id          String   @id @default(cuid())
-  nameTe      String
-  nameEn      String
-  price       Decimal  @db.Decimal(10, 2)
-  unit        String   @default("kg")
-  imageUrl    String?
-  isAvailable Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  orderItems OrderItem[]
-}
-
-model Order {
-  id          String @id @default(cuid())
-  orderNumber String @unique
-
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id])
-
-  customerName String
-  phone        String
-  address      String
-  landmark     String?
-  locality     String?
-  notes        String?
-
-  deliverySlot DeliverySlot
-
-  subtotal       Decimal @db.Decimal(10, 2)
-  deliveryCharge Decimal @db.Decimal(10, 2)
-  total          Decimal @db.Decimal(10, 2)
-
-  paymentMethod PaymentMethod @default(CASH_ON_DELIVERY)
-  status        OrderStatus   @default(PENDING)
+model PaymentAccount {
+  id        String   @id @default(cuid())
+  name      String
+  qrImageUrl String?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items OrderItem[]
+  orders Order[]
+
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model Order {
+  id             String        @id @default(cuid())
+  customerId     String
+
+  subtotal       Decimal       @db.Decimal(10, 2)
+  deliveryCharge Decimal       @db.Decimal(10, 2)
+  total          Decimal       @db.Decimal(10, 2)
+
+  status         OrderStatus   @default(PENDING)
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  address        String
+  customerName   String
+  landmark       String?
+  notes          String?
+  orderNumber    String        @unique
+
+  idempotencyKey  String?       @unique
+  idempotencyHash String?
+
+  phone          String
+
+  deliverySlotId        String
+  deliverySlot          DeliverySlot @relation(fields: [deliverySlotId], references: [id])
+  deliverySlotLabel     String
+  deliverySlotStartTime String
+  deliverySlotEndTime   String?
+
+  locality String?
+
+  paymentMethod PaymentMethod @default(CASH)
+
+  paymentAccountId String?
+  paymentAccount   PaymentAccount? @relation(fields: [paymentAccountId], references: [id], onDelete: SetNull)
+  paymentAccountName String?
+
+  paymentCollected Boolean   @default(false)
+  paymentCollectedAt DateTime?
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  items    OrderItem[]
 
   @@index([customerId])
   @@index([phone])
   @@index([status])
-  @@index([deliverySlot])
+  @@index([deliverySlotId])
   @@index([locality])
   @@index([createdAt])
+  @@index([paymentMethod])
+  @@index([paymentAccountId])
+  @@index([paymentCollected])
+  @@index([paymentCollectedAt])
 }
 
 model OrderItem {
-  id String @id @default(cuid())
-
-  orderId String
-  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
+  id          String    @id @default(cuid())
+  orderId     String
   vegetableId String
-  vegetable   Vegetable @relation(fields: [vegetableId], references: [id])
+  quantity    Decimal   @db.Decimal(10, 2)
+  name        String
+  unitPrice   Decimal   @db.Decimal(10, 2)
+  createdAt   DateTime  @default(now())
+  total       Decimal   @db.Decimal(10, 2)
 
-  name      String
-  quantity  Decimal @db.Decimal(10, 2)
-  unitPrice Decimal @db.Decimal(10, 2)
-  total     Decimal @db.Decimal(10, 2)
-
-  createdAt DateTime @default(now())
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  vegetable Vegetable @relation(fields: [vegetableId], references: [id])
 
   @@index([orderId])
   @@index([vegetableId])
 }
 
-enum DeliverySlot {
-  MORNING_0630
-  MORNING_0800
-  MORNING_1000
-  EVENING_1800
-  EVENING_2000
+model StoreSettings {
+  id             String   @id @default("default")
+  minimumOrder   Decimal  @db.Decimal(10, 2)
+  deliveryCharge Decimal  @db.Decimal(10, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 enum PaymentMethod {
-  CASH_ON_DELIVERY
+  CASH
+  QR
 }
 
 enum OrderStatus {
@@ -110,4 +203,73 @@ enum OrderStatus {
   OUT_FOR_DELIVERY
   DELIVERED
   CANCELLED
+}
+
+model Admin {
+  id           String         @id @default(cuid())
+  username     String         @unique
+  passwordHash String
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  sessions AdminSession[]
+}
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  adminId   String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([expiresAt])
+}
+
+model AdminLoginAttempt {
+  id        String   @id @default(cuid())
+  ipHash    String
+  createdAt DateTime @default(now())
+
+  @@index([ipHash, createdAt])
+  @@index([createdAt])
+}
+
+model DeliveryBoy {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  name         String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions DeliverySession[]
+
+  @@index([isActive])
+}
+
+model DeliverySession {
+  id            String      @id @default(cuid())
+  deliveryBoyId String
+  tokenHash     String      @unique
+  expiresAt     DateTime
+  createdAt     DateTime    @default(now())
+
+  deliveryBoy DeliveryBoy @relation(fields: [deliveryBoyId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryBoyId])
+  @@index([expiresAt])
+}
+
+model DeliveryLoginAttempt {
+  id        String   @id @default(cuid())
+  ipHash    String
+  createdAt DateTime @default(now())
+
+  @@index([ipHash, createdAt])
+  @@index([createdAt])
 }

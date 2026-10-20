@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+
 import { prisma } from "@/lib/prisma";
+import { getAuthenticatedCustomer } from "@/lib/customer-auth";
 
 type RouteContext = {
   params: Promise<{
@@ -8,42 +10,124 @@ type RouteContext = {
 };
 
 export async function GET(
-  request: Request,
+  _request: Request,
   context: RouteContext
 ) {
   try {
-    const params = await context.params;
+    /*
+     * --------------------------------------------------
+     * 1. Authenticate customer
+     * --------------------------------------------------
+     */
 
-    const orderNumber = params.orderNumber;
+    const authenticatedCustomer =
+      await getAuthenticatedCustomer();
 
-    console.log(
-      "ORDER NUMBER FROM ROUTE:",
-      orderNumber
-    );
-
-    console.log(
-      "REQUEST URL:",
-      request.url
-    );
-
-    if (!orderNumber) {
+    if (!authenticatedCustomer) {
       return NextResponse.json(
         {
-          error: "Order number is required.",
+          error:
+            "Please login to view this order.",
         },
-        { status: 400 }
+        {
+          status: 401,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        }
       );
     }
 
-    const order =
-      await prisma.order.findUnique({
-        where: {
-          orderNumber: orderNumber,
+    /*
+     * --------------------------------------------------
+     * 2. Read and validate order number
+     * --------------------------------------------------
+     */
+
+    const params = await context.params;
+
+    const orderNumber =
+      typeof params.orderNumber === "string"
+        ? params.orderNumber.trim()
+        : "";
+
+    if (
+      !orderNumber ||
+      orderNumber.length > 100
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Order number is required.",
         },
-        include: {
+        {
+          status: 400,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        }
+      );
+    }
+
+    /*
+     * --------------------------------------------------
+     * 3. Fetch ONLY this customer's order
+     * --------------------------------------------------
+     *
+     * The customer ID comes from the authenticated
+     * server-side session, never from the browser.
+     *
+     * This prevents one customer from viewing another
+     * customer's order by changing the order number.
+     *
+     * Only fields required by the customer-facing
+     * order page are selected from the database.
+     * --------------------------------------------------
+     */
+
+    const order =
+      await prisma.order.findFirst({
+        where: {
+          orderNumber,
+          customerId:
+            authenticatedCustomer.id,
+        },
+
+        select: {
+          id: true,
+          orderNumber: true,
+          customerName: true,
+          phone: true,
+          address: true,
+          landmark: true,
+          locality: true,
+          subtotal: true,
+          deliveryCharge: true,
+          total: true,
+          paymentMethod: true,
+          paymentCollected: true,
+          status: true,
+          deliverySlotLabel: true,
+          createdAt: true,
+
           items: {
             orderBy: {
               createdAt: "asc",
+            },
+
+            select: {
+              id: true,
+              vegetableId: true,
+              name: true,
+              vegetable: {
+                select: {
+                  nameEn: true,
+                  nameTe: true,
+                },
+              },
+              quantity: true,
+              unitPrice: true,
+              total: true,
             },
           },
         },
@@ -54,78 +138,118 @@ export async function GET(
         {
           error: "Order not found.",
         },
-        { status: 404 }
+        {
+          status: 404,
+          headers: {
+            "Cache-Control": "no-store",
+          },
+        }
       );
     }
 
-    return NextResponse.json({
-      success: true,
+    /*
+     * --------------------------------------------------
+     * 4. Return order
+     * --------------------------------------------------
+     */
 
-      order: {
-        id: order.id,
+    return NextResponse.json(
+      {
+        success: true,
 
-        orderNumber:
-          order.orderNumber,
+        order: {
+          id:
+            order.id,
 
-        customerName:
-          order.customerName,
+          orderNumber:
+            order.orderNumber,
 
-        phone:
-          order.phone,
+          customerName:
+            order.customerName,
 
-        address:
-          order.address,
+          phone:
+            order.phone,
 
-        landmark:
-          order.landmark,
+          address:
+            order.address,
 
-        locality:
-          order.locality,
+          landmark:
+            order.landmark,
 
-        subtotal:
-          order.subtotal.toString(),
+          locality:
+            order.locality,
 
-        deliveryCharge:
-          order.deliveryCharge.toString(),
+          subtotal:
+            order.subtotal.toString(),
 
-        total:
-          order.total.toString(),
+          deliveryCharge:
+            order.deliveryCharge.toString(),
 
-        paymentMethod:
-          order.paymentMethod,
+          total:
+            order.total.toString(),
 
-        status:
-          order.status,
+          paymentMethod:
+            order.paymentMethod,
 
-        deliverySlot:
-          order.deliverySlot,
+          paymentCollected:
+            order.paymentCollected,
 
-        createdAt:
-          order.createdAt,
+          status:
+            order.status,
 
-        items: order.items.map(
-          (item) => ({
-            id: item.id,
+          /*
+           * Historical delivery slot snapshot.
+           */
+          deliverySlot:
+            order.deliverySlotLabel,
 
-            vegetableId:
-              item.vegetableId,
+          createdAt:
+            order.createdAt,
 
-            name:
-              item.name,
+          items:
+            order.items.map(
+              (item) => ({
+                id:
+                  item.id,
 
-            quantity:
-              item.quantity.toString(),
+                vegetableId:
+                  item.vegetableId,
 
-            unitPrice:
-              item.unitPrice.toString(),
+                name:
+                  item.name,
 
-            total:
-              item.total.toString(),
-          })
-        ),
+                nameEn:
+                  item.vegetable.nameEn,
+
+                nameTe:
+                  item.vegetable.nameTe,
+
+                quantity:
+                  item.quantity.toString(),
+
+                unitPrice:
+                  item.unitPrice.toString(),
+
+                total:
+                  item.total.toString(),
+              })
+            ),
+        },
       },
-    });
+      {
+        status: 200,
+        headers: {
+          "Cache-Control":
+            "no-store",
+        },
+      }
+    );
   } catch (error) {
+    /*
+     * Do not expose internal database/provider
+     * errors to the customer.
+     */
+
     console.error(
       "ORDER_FETCH_ERROR:",
       error
@@ -134,11 +258,15 @@ export async function GET(
     return NextResponse.json(
       {
         error:
-          error instanceof Error
-            ? error.message
-            : "Something went wrong while fetching the order.",
+          "Something went wrong while fetching the order.",
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "Cache-Control":
+            "no-store",
+        },
+      }
     );
   }
 }

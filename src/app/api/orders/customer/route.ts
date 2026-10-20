@@ -1,77 +1,158 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { getAuthenticatedCustomer } from "@/lib/customer-auth";
 
-export async function GET(request: Request) {
+function jsonResponse(
+  body: Record<string, unknown>,
+  status = 200
+) {
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url);
+    /*
+     * --------------------------------------------------
+     * 1. Authenticate customer
+     * --------------------------------------------------
+     *
+     * Customer identity comes exclusively from
+     * the authenticated HttpOnly session cookie.
+     * --------------------------------------------------
+     */
 
-    const phone = searchParams.get("phone")?.trim();
+    const authenticatedCustomer =
+      await getAuthenticatedCustomer();
 
-    if (!phone) {
-      return NextResponse.json(
+    if (!authenticatedCustomer) {
+      return jsonResponse(
         {
-          error: "Phone number is required.",
+          error:
+            "Please login to view your orders.",
         },
-        { status: 400 }
+        401
       );
     }
 
-    if (!/^[6-9]\d{9}$/.test(phone)) {
-      return NextResponse.json(
-        {
-          error: "Invalid phone number.",
+    /*
+     * --------------------------------------------------
+     * 2. Fetch only authenticated customer's orders
+     * --------------------------------------------------
+     *
+     * The customer ID is taken from the server-side
+     * authenticated session.
+     *
+     * No customer ID is accepted from the browser.
+     *
+     * Only fields required by the customer-facing
+     * orders page are selected.
+     * --------------------------------------------------
+     */
+
+    const orders =
+      await prisma.order.findMany({
+        where: {
+          customerId:
+            authenticatedCustomer.id,
         },
-        { status: 400 }
-      );
-    }
 
-    const customer = await prisma.customer.findUnique({
-      where: {
-        phone,
-      },
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
 
-    if (!customer) {
-      return NextResponse.json({
-        success: true,
-        orders: [],
-      });
-    }
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
 
-    const orders = await prisma.order.findMany({
-      where: {
-        customerId: customer.id,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        items: {
-          orderBy: {
-            createdAt: "asc",
+          deliverySlotId: true,
+          deliverySlotLabel: true,
+          deliverySlotStartTime: true,
+          deliverySlotEndTime: true,
+
+          subtotal: true,
+          deliveryCharge: true,
+          total: true,
+
+          paymentMethod: true,
+          createdAt: true,
+
+          items: {
+            orderBy: {
+              createdAt: "asc",
+            },
+
+            select: {
+              id: true,
+              name: true,
+              vegetable: {
+                select: {
+                  nameEn: true,
+                  nameTe: true,
+                },
+              },
+              quantity: true,
+              unitPrice: true,
+              total: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return NextResponse.json({
+    /*
+     * --------------------------------------------------
+     * 3. Return safe order data
+     * --------------------------------------------------
+     *
+     * We intentionally use the delivery-slot snapshot
+     * stored on the order.
+     *
+     * This means an admin can later edit a delivery slot
+     * without changing the information shown for an
+     * already-created order.
+     * --------------------------------------------------
+     */
+
+    return jsonResponse({
       success: true,
 
       orders: orders.map((order) => ({
         id: order.id,
-        orderNumber: order.orderNumber,
 
-        status: order.status,
+        orderNumber:
+          order.orderNumber,
 
-        deliverySlot: order.deliverySlot,
+        status:
+          order.status,
 
-        subtotal: order.subtotal.toString(),
+        deliverySlot: {
+          id:
+            order.deliverySlotId,
+
+          label:
+            order.deliverySlotLabel,
+
+          startTime:
+            order.deliverySlotStartTime,
+
+          endTime:
+            order.deliverySlotEndTime,
+        },
+
+        subtotal:
+          order.subtotal.toString(),
 
         deliveryCharge:
           order.deliveryCharge.toString(),
 
-        total: order.total.toString(),
+        total:
+          order.total.toString(),
 
         paymentMethod:
           order.paymentMethod,
@@ -79,16 +160,30 @@ export async function GET(request: Request) {
         createdAt:
           order.createdAt,
 
-        items: order.items.map((item) => ({
-          id: item.id,
-          name: item.name,
-          quantity:
-            item.quantity.toString(),
-          unitPrice:
-            item.unitPrice.toString(),
-          total:
-            item.total.toString(),
-        })),
+        items:
+          order.items.map(
+            (item) => ({
+              id: item.id,
+
+              name:
+                item.name,
+
+              nameEn:
+                item.vegetable.nameEn,
+
+              nameTe:
+                item.vegetable.nameTe,
+
+              quantity:
+                item.quantity.toString(),
+
+              unitPrice:
+                item.unitPrice.toString(),
+
+              total:
+                item.total.toString(),
+            })
+          ),
       })),
     });
   } catch (error) {
@@ -97,14 +192,12 @@ export async function GET(request: Request) {
       error
     );
 
-    return NextResponse.json(
+    return jsonResponse(
       {
         error:
-          error instanceof Error
-            ? error.message
-            : "Unable to load orders.",
+          "Unable to load orders.",
       },
-      { status: 500 }
+      500
     );
   }
 }

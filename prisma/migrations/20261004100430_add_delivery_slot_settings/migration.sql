@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "StoreSettings" ADD COLUMN     "evening1800Active" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "evening2000Active" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "morning0630Active" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "morning0800Active" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "morning1000Active" BOOLEAN NOT NULL DEFAULT true;

@@ -1,11 +1,14 @@
+
 import type { Metadata } from "next";
 import "./globals.css";
-import AppHeader from "@/components/layout/app-header";
-import BottomNav from "@/components/layout/bottom-nav";
+
+import AppShell from "@/components/layout/app-shell";
 import { CartProvider } from "@/components/cart/cart-provider";
+import { LanguageProvider } from "@/components/language/language-provider";
+import LanguageGate from "@/components/language/language-gate";
 
 export const metadata: Metadata = {
-  title: "VegitPTP",
+  title: "VegItPTP",
   description: "Fresh vegetables delivered in Pithapuram",
 };
 
@@ -16,16 +19,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-gray-50 text-gray-900">
-        <CartProvider>
-          <AppHeader />
-
-          <main className="mx-auto min-h-screen max-w-2xl pb-20">
-            {children}
-          </main>
-
-          <BottomNav />
-        </CartProvider>
+      <body className="bg-[var(--app-background)] text-[var(--app-foreground)]">
+        <LanguageProvider>
+          <CartProvider>
+            <LanguageGate>
+              <AppShell>{children}</AppShell>
+            </LanguageGate>
+          </CartProvider>
+        </LanguageProvider>
       </body>
     </html>
   );
